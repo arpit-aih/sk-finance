@@ -1,0 +1,8 @@
+.venv
+*.pt
+extracted
+uploads
+*.ts
+__pycache__
+confidence_score.py
+.env
