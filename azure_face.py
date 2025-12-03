@@ -17,8 +17,6 @@ HEADERS_IMG = {"Ocp-Apim-Subscription-Key": AZURE_FACE_KEY, "Content-Type": "app
 HEADERS_JSON = {"Ocp-Apim-Subscription-Key": AZURE_FACE_KEY, "Content-Type": "application/json"}
 
 
-import requests
-
 async def azure_detect_face(image_bytes: bytes, recognition_model: str = "recognition_04"):
     try:
         url = f"{AZURE_FACE_ENDPOINT}/face/v1.2/detect"
@@ -33,7 +31,7 @@ async def azure_detect_face(image_bytes: bytes, recognition_model: str = "recogn
             resp = requests.post(
                 url,
                 params=params,
-                headers=HEADERS_IMG,   # should include Content-Type: application/octet-stream and key
+                headers=HEADERS_IMG,  
                 data=image_bytes,
                 timeout=30,
             )
@@ -59,7 +57,6 @@ async def azure_detect_face(image_bytes: bytes, recognition_model: str = "recogn
 
     except Exception as err:
         return {"error": f"Unexpected error in azure_detect_face: {err}"}
-
  
 
 async def azure_verify(faceId1: str, faceId2: str):

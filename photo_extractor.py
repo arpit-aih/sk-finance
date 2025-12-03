@@ -9,9 +9,7 @@ from logger_config import get_logger
 logger = get_logger("photo_extractor")
 
 
-YOLOE_WEIGHTS_PATH = "yoloe-11l-seg.pt"
-
-yolo_model = YOLOE(YOLOE_WEIGHTS_PATH)
+yolo_model = YOLOE("yoloe-11l-seg.pt")
 
 
 _YOLO_CLASSES = ["person"]
@@ -92,7 +90,6 @@ def extract_passport_photos_from_pages(
 
         extracted_bytes: List[bytes] = []
 
-        # ----- Iterate over detections -----
         for det_idx, ((x_min, y_min, x_max, y_max), cls_id) in enumerate(zip(boxes_xyxy, classes)):
             try:
                 class_name = pred.names[int(cls_id)] if hasattr(pred, "names") else None
@@ -103,7 +100,6 @@ def extract_passport_photos_from_pages(
                 logger.debug(f"[PassportExtractor] Ignored detection {det_idx} (class={class_name})")
                 continue
 
-            # Confidence filter
             if confs_np is not None and confs_np[det_idx] < 0.5:
                 logger.debug(
                     f"[PassportExtractor] Low confidence ({confs_np[det_idx]}) for detection {det_idx} on page {page_index}"
@@ -121,7 +117,6 @@ def extract_passport_photos_from_pages(
                 )
                 continue
 
-            # ----- Crop & encode -----
             try:
                 cropped = page_rgb.crop((left, top, right, bottom))
 
@@ -144,4 +139,3 @@ def extract_passport_photos_from_pages(
         results[page_index] = extracted_bytes
 
     return results
-

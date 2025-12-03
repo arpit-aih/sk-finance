@@ -1,9 +1,10 @@
-import cv2
+import cv2, io
 import numpy as np
 from PIL import Image
 from typing import List, Dict
 from transformers import pipeline
 from logger_config import get_logger
+from pdf2image import convert_from_bytes
 
 
 logger = get_logger("signature_extractor")
@@ -14,6 +15,61 @@ signature_pipe = pipeline(
     model="tech4humans/conditional-detr-50-signature-detector",
     framework="pt"
 )
+
+
+def file_bytes_to_pil_pages(content: bytes, filename: str) -> List[Image.Image]:
+
+    name = filename.lower()
+    try:
+        if name.endswith(".pdf"):
+            try:
+                pages = convert_from_bytes(content, dpi=200)
+                return pages
+            except Exception as pdf_err:
+                raise ValueError(f"Failed to convert PDF to images: {pdf_err}")
+
+        else:
+            try:
+                pil = Image.open(io.BytesIO(content)).convert("RGB")
+                return [pil]
+            except Exception as img_err:
+                raise ValueError(f"Failed to open image file: {img_err}")
+
+    except Exception as err:
+        raise RuntimeError(f"Error processing file '{filename}': {err}")
+    
+
+def bytes_to_cv2_img(b: bytes) -> np.ndarray:
+    try:
+        arr = np.frombuffer(b, np.uint8)
+        try:
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError("cv2.imdecode returned None")
+            return img
+
+        except Exception as decode_err:
+            raise ValueError(f"Failed to decode image bytes with OpenCV: {decode_err}")
+
+    except Exception as err:
+        raise RuntimeError(f"Error converting bytes to cv2 image: {err}")
+    
+
+def ensure_jpeg_bytes(item) -> bytes:
+        
+        if isinstance(item, (bytes, bytearray)):
+            arr = np.frombuffer(item, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError("Could not decode returned image bytes")
+            return cv2_to_jpeg_bytes(img, quality=90)
+        if isinstance(item, Image.Image):
+            arr = np.array(item.convert("RGB"))
+            bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+            return cv2_to_jpeg_bytes(bgr, quality=90)
+        if isinstance(item, np.ndarray):
+            return cv2_to_jpeg_bytes(item, quality=90)
+        raise ValueError(f"Unsupported extracted photo type: {type(item)}")
 
 
 def cv2_to_jpeg_bytes(img: np.ndarray, quality: int = 90) -> bytes:
