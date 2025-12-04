@@ -1,4 +1,4 @@
-import cv2, io
+import cv2, io, torch, fitz
 import numpy as np
 from PIL import Image
 from typing import List, Dict
@@ -10,21 +10,42 @@ from pdf2image import convert_from_bytes
 logger = get_logger("signature_extractor")
 
 
+device = 0 if torch.cuda.is_available() else -1
+
 signature_pipe = pipeline(
     "object-detection",
     model="tech4humans/conditional-detr-50-signature-detector",
-    framework="pt"
+    framework = "pt",
+    device = device
 )
 
 
-def file_bytes_to_pil_pages(content: bytes, filename: str) -> List[Image.Image]:
-
-    name = filename.lower()
+def file_bytes_to_pil_pages(content: bytes, filename: str, dpi: int = 200) -> List[Image.Image]:
+    
+    name = (filename or "").lower()
     try:
         if name.endswith(".pdf"):
             try:
-                pages = convert_from_bytes(content, dpi=200)
+                doc = fitz.open(stream=content, filetype="pdf")
+
+                pages: List[Image.Image] = []
+                scale = dpi / 72.0
+                mat = fitz.Matrix(scale, scale)
+
+                for page in doc:
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                    mode = "RGB"
+                    try:
+                        img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+                    except Exception:
+                        img = Image.open(io.BytesIO(pix.tobytes())).convert("RGB")
+
+                    pages.append(img)
+
+                doc.close()
                 return pages
+
             except Exception as pdf_err:
                 raise ValueError(f"Failed to convert PDF to images: {pdf_err}")
 

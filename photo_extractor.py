@@ -1,4 +1,4 @@
-import cv2
+import cv2, torch
 import numpy as np
 from PIL import Image
 from typing import List, Dict
@@ -9,7 +9,9 @@ from logger_config import get_logger
 logger = get_logger("photo_extractor")
 
 
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 yolo_model = YOLOE("yoloe-11l-seg.pt")
+yolo_model.to(device=device)
 
 
 _YOLO_CLASSES = ["person"]

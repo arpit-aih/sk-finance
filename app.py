@@ -145,6 +145,20 @@ async def compare_signatures(
         pages = file_bytes_to_pil_pages(content, file.filename or "upload")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse upload: {e}")
+    
+    try:
+        ref_pages = file_bytes_to_pil_pages(ref_bytes, reference_signature.filename or "reference")
+        if not ref_pages or len(ref_pages) == 0:
+            raise ValueError("No pages/images found in reference upload")
+
+        ref_page = ref_pages[0].convert("RGB")
+        ref_arr = np.array(ref_page)
+        ref_bgr = cv2.cvtColor(ref_arr, cv2.COLOR_RGB2BGR)
+        ref_bytes = cv2_to_jpeg_bytes(ref_bgr, quality=90)
+
+    except Exception as e:
+        logger.exception(f"Failed to convert reference document to image: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to convert reference document to image: {e}")
 
     try:
         extraction_results = extract_signatures_photos_from_pages(pages)
@@ -266,6 +280,20 @@ async def compare_photos(
         pages = file_bytes_to_pil_pages(content, file.filename or "upload")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse document: {e}")
+    
+    try:
+        ref_pages = file_bytes_to_pil_pages(ref_bytes, reference_photo.filename or "reference")
+        if not ref_pages or len(ref_pages) == 0:
+            raise ValueError("No pages/images found in reference upload")
+
+        ref_page = ref_pages[0].convert("RGB")
+        ref_arr = np.array(ref_page)
+        ref_bgr = cv2.cvtColor(ref_arr, cv2.COLOR_RGB2BGR)
+        ref_bytes = cv2_to_jpeg_bytes(ref_bgr, quality=90)
+
+    except Exception as e:
+        logger.exception(f"Failed to convert reference document to image: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to convert reference photo to image: {e}")
     
     ref_face = await azure_detect_face(ref_bytes)
     if "error" in ref_face:
