@@ -12,9 +12,7 @@ from azure_face import azure_detect_face, azure_verify
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from photo_extractor import extract_passport_photos_from_pages
 from signature_extractor import (extract_signatures_photos_from_pages,
-                                 file_bytes_to_pil_pages,
-                                 bytes_to_cv2_img,
-                                 ensure_jpeg_bytes)
+                                 file_bytes_to_pil_pages)
 
 
 
