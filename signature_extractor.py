@@ -78,7 +78,7 @@ def cv2_to_jpeg_bytes(img: np.ndarray, quality: int = 90) -> bytes:
 
     except Exception as err:
         raise RuntimeError(f"Error in cv2_to_jpeg_bytes: {err}")
-
+    
 
 def extract_signatures_photos_from_pages(
     pages: List[Image.Image]
@@ -87,7 +87,7 @@ def extract_signatures_photos_from_pages(
     results: Dict[int, List[bytes]] = {}
 
     for page_index, page in enumerate(pages):
-        logger.info(f"[SignatureExtractor] Processing page {page_index}")
+        logger.info(f"Processing page {page_index}")
 
         page_rgb = page.convert("RGB")
         page_width, page_height = page_rgb.size
@@ -95,12 +95,12 @@ def extract_signatures_photos_from_pages(
         try:
             detections = signature_pipe(page_rgb)
         except Exception as e:
-            logger.exception(f"[SignatureExtractor] Model inference failed on page {page_index}: {e}")
+            logger.exception(f"Model inference failed on page {page_index}: {e}")
             results[page_index] = []
             continue
 
         if not detections:
-            logger.info(f"[SignatureExtractor] No detections found on page {page_index}")
+            logger.info(f"No signature found on page {page_index}")
             results[page_index] = []
             continue
 
@@ -113,11 +113,11 @@ def extract_signatures_photos_from_pages(
                 label = det.get("label", "").lower()
 
                 if "sign" not in label:
-                    logger.debug(f"[SignatureExtractor] Ignored detection {det_idx} (label={label})")
+                    logger.debug(f"Ignored detection {det_idx} (label={label})")
                     continue
 
                 if score < 0.5:
-                    logger.debug(f"[SignatureExtractor] Low score ({score}) for detection {det_idx}")
+                    logger.debug(f"Low score ({score}) for detection {det_idx}")
                     continue
 
                 xmin = float(box.get("xmin", 0.0))
@@ -132,7 +132,7 @@ def extract_signatures_photos_from_pages(
 
                 if right - left < 2 or bottom - top < 2:
                     logger.warning(
-                        f"[SignatureExtractor] Very small crop skipped on page {page_index}, det {det_idx}"
+                        f"Very small crop skipped on page {page_index}, det {det_idx}"
                     )
                     continue
 
@@ -147,18 +147,18 @@ def extract_signatures_photos_from_pages(
 
                 except Exception as e_crop:
                     logger.exception(
-                        f"[SignatureExtractor] Crop/encode failed on page {page_index}, det {det_idx}: {e_crop}"
+                        f"Crop/encode failed on page {page_index}, det {det_idx}: {e_crop}"
                     )
                     continue
 
             except Exception as e_det:
                 logger.exception(
-                    f"[SignatureExtractor] Error parsing detection on page {page_index}, det {det_idx}: {e_det}"
+                    f"Error parsing detection on page {page_index}, det {det_idx}: {e_det}"
                 )
                 continue
 
         logger.info(
-            f"[SignatureExtractor] Extracted {len(extracted_bytes)} signatures from page {page_index}"
+            f"Extracted {len(extracted_bytes)} signatures from page {page_index}"
         )
 
         results[page_index] = extracted_bytes

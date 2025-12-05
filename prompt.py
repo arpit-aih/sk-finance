@@ -30,8 +30,8 @@ signature_prompt = """
 photo_prompt = """You are a facial-feature comparison engine.
 
         Compare the two input images:
-        1. Original passport photo image
-        2. Extracted passport photo image from a document
+        1. Reference photo image
+        2. Document photo image 
 
         Do NOT identify the person or confirm identity.  
         Do NOT provide conclusions like "same person" or "different person."  

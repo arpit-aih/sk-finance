@@ -18,7 +18,7 @@ _YOLO_CLASSES = ["person"]
 yolo_model.set_classes(_YOLO_CLASSES, yolo_model.get_text_pe(_YOLO_CLASSES))
 
 
-def cv2_to_jpeg_bytes(img: np.ndarray, quality: int = 90) -> bytes:
+def cv2_to_jpeg_bytes(img: np.ndarray, quality: int = 95) -> bytes:
     try:
         try:
             ok, enc = cv2.imencode(
@@ -45,7 +45,7 @@ def extract_passport_photos_from_pages(
     results: Dict[int, List[bytes]] = {}
 
     for page_index, page in enumerate(pages):
-        logger.info(f"[PassportExtractor] Processing page {page_index}")
+        logger.info(f"Processing page {page_index}")
 
         try:
             page_rgb = page.convert("RGB")
@@ -53,26 +53,26 @@ def extract_passport_photos_from_pages(
             page_np = np.array(page_rgb)
 
         except Exception as e:
-            logger.exception(f"[PassportExtractor] Failed to convert page {page_index} to RGB/NumPy: {e}")
+            logger.exception(f"Failed to convert page {page_index} to RGB/NumPy: {e}")
             results[page_index] = []
             continue
 
         try:
             preds = yolo_model.predict(page_np, verbose=False)
         except Exception as e:
-            logger.exception(f"[PassportExtractor] YOLO inference failed for page {page_index}: {e}")
+            logger.exception(f"Inference failed for page {page_index}: {e}")
             results[page_index] = []
             continue
 
         if not preds:
-            logger.info(f"[PassportExtractor] No predictions for page {page_index}")
+            logger.info(f"No predictions for page {page_index}")
             results[page_index] = []
             continue
 
         pred = preds[0]
 
         if not hasattr(pred, "boxes") or pred.boxes is None or len(pred.boxes) == 0:
-            logger.info(f"[PassportExtractor] No bounding boxes found on page {page_index}")
+            logger.info(f"No bounding boxes found on page {page_index}")
             results[page_index] = []
             continue
 
@@ -86,7 +86,7 @@ def extract_passport_photos_from_pages(
             confs_np = confs.cpu().numpy() if confs is not None else None
 
         except Exception as e:
-            logger.exception(f"[PassportExtractor] Failed to parse prediction tensors on page {page_index}: {e}")
+            logger.exception(f"Failed to parse prediction tensors on page {page_index}: {e}")
             results[page_index] = []
             continue
 
@@ -99,12 +99,12 @@ def extract_passport_photos_from_pages(
                 class_name = None
 
             if class_name != "person":
-                logger.debug(f"[PassportExtractor] Ignored detection {det_idx} (class={class_name})")
+                logger.debug(f"Ignored detection {det_idx} (class={class_name})")
                 continue
 
             if confs_np is not None and confs_np[det_idx] < 0.5:
                 logger.debug(
-                    f"[PassportExtractor] Low confidence ({confs_np[det_idx]}) for detection {det_idx} on page {page_index}"
+                    f"Low confidence ({confs_np[det_idx]}) for detection {det_idx} on page {page_index}"
                 )
                 continue
 
@@ -115,7 +115,7 @@ def extract_passport_photos_from_pages(
 
             if right - left < 2 or bottom - top < 2:
                 logger.warning(
-                    f"[PassportExtractor] Very small crop skipped for det {det_idx} on page {page_index}"
+                    f"Very small crop skipped for det {det_idx} on page {page_index}"
                 )
                 continue
 
@@ -130,12 +130,12 @@ def extract_passport_photos_from_pages(
 
             except Exception as e_crop:
                 logger.exception(
-                    f"[PassportExtractor] Crop/encode failed for det {det_idx} on page {page_index}: {e_crop}"
+                    f"Crop/encode failed for det {det_idx} on page {page_index}: {e_crop}"
                 )
                 continue
 
         logger.info(
-            f"[PassportExtractor] Extracted {len(extracted_bytes)} images from page {page_index}"
+            f"Extracted {len(extracted_bytes)} images from page {page_index}"
         )
 
         results[page_index] = extracted_bytes
