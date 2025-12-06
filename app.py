@@ -13,6 +13,10 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from photo_extractor import extract_passport_photos_from_pages
 from signature_extractor import (extract_signatures_photos_from_pages,
                                  file_bytes_to_pil_pages)
+from cost_analysis import (calculate_faceapi_cost, 
+                           calculate_input_cost,
+                           calculate_output_cost,
+                           count_tokens) 
 
 
 logger = get_logger("app")
@@ -92,7 +96,7 @@ async def get_image_embedding(image_bytes: bytes) -> List[float]:
     except Exception as e:
         logger.error(f"Error in get_image_embedding: {str(e)}")
         raise e
-        
+
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
     if not a or not b:
@@ -352,8 +356,8 @@ async def compare_signatures(
             return cv2_to_jpeg_bytes(item, quality=95)
 
         raise ValueError(f"Unsupported type {type(item)}")
-
-    response = {"files": []}
+    
+    total_model_cost = 0
     files_map = {}
 
     # Initialize maps
@@ -397,6 +401,9 @@ async def compare_signatures(
                     logger.error(f"Embedding error: {e}")
                     similarity_score = None
 
+                input_tokens = count_tokens(signature_prompt)
+                total_model_cost += calculate_input_cost(input_tokens)
+
                 # Model report
                 try:
                     model_result = await get_model_response(
@@ -404,6 +411,8 @@ async def compare_signatures(
                         base64.b64encode(ref_jpeg).decode("ascii"),
                         crop_b64,
                     )
+                    output_tokens = count_tokens(model_result)
+                    total_model_cost += calculate_output_cost(output_tokens)
                 except Exception as e:
                     logger.error(f"Model error: {e}")
                     model_result = None
@@ -419,6 +428,10 @@ async def compare_signatures(
                 "report": model_result,
                 "image": crop_b64
             })
+
+    response = {"total_cost": round(total_model_cost, 3),
+        "files": []
+        }
 
     # Final response structure
     for f_idx in sorted(files_map.keys()):
@@ -548,9 +561,11 @@ async def compare_photos(
             return cv2_to_jpeg_bytes(item, quality=95)
 
         raise ValueError(f"Unsupported extracted photo type: {type(item)}")
+    
+    total_model_cost = 0
+    total_faceapi_calls = 0
 
     # Build response: one entry per uploaded file, each with a flat photos array
-    response = {"files": []}
     files_map = {}
     for f_idx, fname, _ in pages_meta:
         if f_idx not in files_map:
@@ -599,6 +614,9 @@ async def compare_photos(
                     except Exception as e_save:
                         logger.exception(f"Failed saving crop to {crop_filepath}: {e_save}")
 
+
+                    input_tokens = count_tokens(photo_prompt)
+                    total_model_cost += calculate_input_cost(input_tokens)
                     # Call external model (if present)
                     try:
                         model_result = await get_model_response(
@@ -606,6 +624,8 @@ async def compare_photos(
                             base64.b64encode(ref_jpeg_bytes).decode("ascii"),
                             photo_b64
                         )
+                        output_tokens = count_tokens(model_result)
+                        total_model_cost += calculate_output_cost(output_tokens)
                     except Exception as e_model:
                         logger.exception(f"Model response error for crop (page {page_idx}, idx {crop_idx}): {e_model}")
                         model_result = None
@@ -625,6 +645,7 @@ async def compare_photos(
 
                         else:
                             verify_result = await azure_verify(ref_faceId, crop_face["faceId"])
+                            total_faceapi_calls += 1
                             if isinstance(verify_result, dict) and "error" in verify_result:
                                 logger.exception(f"Azure verify returned error for crop (page {page_idx}, idx {crop_idx}): {verify_result}")
                                 confidence_score = None
@@ -682,6 +703,14 @@ async def compare_photos(
                         "photos": []
                     }
                 files_map[orig_file_idx]["photos"].append(photo_entry)
+
+    face_api_cost = calculate_faceapi_cost(total_faceapi_calls)
+    total_cost = total_model_cost + face_api_cost
+
+    response = {
+    "total_cost": round(total_cost, 3),
+    "files": []
+}
 
     for f_idx in sorted(files_map.keys()):
         response["files"].append(files_map[f_idx])

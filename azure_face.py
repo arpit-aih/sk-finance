@@ -61,7 +61,7 @@ async def azure_detect_face(image_bytes: bytes, recognition_model: str = "recogn
 
 async def azure_verify(faceId1: str, faceId2: str):
     try:
-        url = f"{AZURE_FACE_ENDPOINT}/face/v1.2/verify"  # adjust if AZURE_FACE_ENDPOINT already has /face/v1.2
+        url = f"{AZURE_FACE_ENDPOINT}/face/v1.2/verify"  
         payload = {"faceId1": faceId1, "faceId2": faceId2}
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -78,7 +78,7 @@ async def azure_verify(faceId1: str, faceId2: str):
             return {"error": f"Azure verify failed: {resp.status_code} {resp.text}"}
 
         try:
-            return resp.json()  # {"isIdentical": bool, "confidence": float}
+            return resp.json()  
         except Exception as json_err:
             return {"error": f"Failed to parse Azure verify response JSON: {json_err}"}
 
