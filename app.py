@@ -595,8 +595,8 @@ async def compare_photos(
                 try:
                     crop_jpeg = ensure_jpeg_bytes(crop_item)
                     photo_b64 = base64.b64encode(crop_jpeg).decode("ascii")
-                except Exception as e_enc:
-                    logger.debug(f"Could not ensure jpeg bytes for crop (page {page_idx}, idx {crop_idx}): {e_enc}")
+                except Exception as e:
+                    logger.debug(f"Could not ensure jpeg bytes for crop (page {page_idx}, idx {crop_idx}): {e}")
                     if isinstance(crop_item, (bytes, bytearray)):
                         try:
                             photo_b64 = base64.b64encode(crop_item).decode("ascii")
@@ -611,8 +611,8 @@ async def compare_photos(
                     try:
                         with open(crop_filepath, "wb") as fh:
                             fh.write(base64.b64decode(photo_b64))
-                    except Exception as e_save:
-                        logger.exception(f"Failed saving crop to {crop_filepath}: {e_save}")
+                    except Exception as e:
+                        logger.exception(f"Failed saving crop to {crop_filepath}: {e}")
 
 
                     input_tokens = count_tokens(photo_prompt)
@@ -626,8 +626,8 @@ async def compare_photos(
                         )
                         output_tokens = count_tokens(model_result)
                         total_model_cost += calculate_output_cost(output_tokens)
-                    except Exception as e_model:
-                        logger.exception(f"Model response error for crop (page {page_idx}, idx {crop_idx}): {e_model}")
+                    except Exception as e:
+                        logger.exception(f"Model response error for crop (page {page_idx}, idx {crop_idx}): {e}")
                         model_result = None
 
                     # Azure detect + verify
@@ -659,8 +659,8 @@ async def compare_photos(
                                     confidence_score = round(confidence_score * 100, 2)
                                     try:
                                         confidence_status = photo_evaluate_confidence(confidence_score)
-                                    except Exception as e_eval:
-                                        logger.exception(f"evaluate_confidence failed: {e_eval}")
+                                    except Exception as e:
+                                        logger.exception(f"evaluate_confidence failed: {e}")
                                         confidence_status = None
 
                     except Exception as e_azure:
@@ -704,8 +704,17 @@ async def compare_photos(
                     }
                 files_map[orig_file_idx]["photos"].append(photo_entry)
 
-    face_api_cost = calculate_faceapi_cost(total_faceapi_calls)
-    total_cost = total_model_cost + face_api_cost
+    try:
+        face_api_cost = calculate_faceapi_cost(total_faceapi_calls)
+    except Exception as e_face_cost:
+        logger.exception(f"Failed calculating face_api_cost: {e_face_cost}")
+        face_api_cost = 0
+
+    try:
+        total_cost = total_model_cost + face_api_cost
+    except Exception as e_total_cost:
+        logger.exception(f"Failed calculating total_cost: {e_total_cost}")
+        total_cost = total_model_cost
 
     response = {
     "total_cost": round(total_cost, 3),
