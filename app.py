@@ -43,84 +43,11 @@ os.makedirs(SIGNATURES_CROPS_DIR, exist_ok=True)
 os.makedirs(PHOTOS_CROPS_DIR, exist_ok=True)
 
 
-# AZURE_ENDPOINT = os.getenv("AZURE_EMBEDDING_ENDPOINT")
-# AZURE_KEY = os.getenv("AZURE_EMBEDDING_KEY")
-
 client = genai.Client(
     api_key=os.getenv("GOOGLE_API_KEY"),
     http_options={'api_version': 'v1beta'}
 )
 
-
-# async def get_image_embedding(image_bytes: bytes) -> List[float]:
-#     try:
-#         if not image_bytes:
-#             raise ValueError("Empty image bytes provided.")
-
-#         img_base64 = base64.b64encode(image_bytes).decode("ascii")
-
-#         payload = {
-#             "input_data": {
-#                 "columns": ["image"],
-#                 "data": [
-#                     {"image": img_base64}
-#                 ]
-#             }
-#         }
-
-#         headers = {
-#             "Authorization": f"Bearer {AZURE_KEY}",
-#             "Content-Type": "application/json"
-#         }
-
-#         async with aiohttp.ClientSession() as session:
-#             async with session.post(AZURE_ENDPOINT, json=payload, headers=headers) as resp:
-#                 if resp.status != 200:
-#                     text = await resp.text()
-#                     logger.error(f"Azure embedding API failed: {resp.status} {text}")
-#                     raise RuntimeError(f"Azure embedding API failed: {resp.status} {text}")
-
-#                 result = await resp.json()
-
-#                 embedding = None
-#                 if isinstance(result, dict):
-#                     results_list = result.get("results") or result.get("output")
-#                     if results_list and isinstance(results_list, list) and len(results_list) > 0:
-#                         first_item = results_list[0]
-#                         if isinstance(first_item, dict):
-#                             embedding = first_item.get("image_features") or first_item.get("embedding")
-#                         elif isinstance(first_item, list):
-#                             embedding = first_item
-#                 elif isinstance(result, list) and len(result) > 0:
-#                     embedding = result[0].get("image_features") if isinstance(result[0], dict) else result[0]
-
-#                 if embedding is None:
-#                     raise ValueError(f"No embedding returned from Azure API. Full response: {result}")
-
-#                 if hasattr(embedding, "tolist"):
-#                     embedding = embedding.tolist()
-
-#                 if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
-#                     raise ValueError(f"Invalid embedding format: {embedding[:5]}...")
-
-#                 return embedding
-
-#     except Exception as e:
-#         logger.error(f"Error in get_image_embedding: {str(e)}")
-#         raise e
-
-
-# def cosine_similarity(a: List[float], b: List[float]) -> float:
-#     if not a or not b:
-#         raise ValueError("Input vectors must not be empty.")
-    
-#     a = np.array(a, dtype=np.float32)
-#     b = np.array(b, dtype=np.float32)
-
-#     if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
-#         return 0.0
-
-#     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
 async def compare_signatures_gemini(sig1_bytes: bytes, sig2_bytes: bytes):
    
@@ -309,18 +236,6 @@ async def compare_signatures(
                 crop_filepath = os.path.join(SIGNATURES_CROPS_DIR, crop_filename)
                 with open(crop_filepath, "wb") as f:
                     f.write(base64.b64decode(crop_b64))
-
-                # Embedding similarity
-                # try:
-                #     emb_crop = await get_image_embedding(crop_jpeg)
-                #     emb_ref = await get_image_embedding(ref_jpeg)
-                #     similarity_score = cosine_similarity(emb_crop, emb_ref)
-                #     if similarity_score is not None:
-                #         similarity_score = round(similarity_score * 100, 2)
-                #         confidence_status = signature_evaluate_confidence(similarity_score)
-                # except Exception as e:
-                #     logger.error(f"Embedding error: {e}")
-                #     similarity_score = None
 
                 try:
                     similarity_score = await compare_signatures_gemini(crop_jpeg, ref_jpeg)
@@ -533,6 +448,7 @@ async def compare_photos(
                 "photos": []
             }
 
+
     # Iterate over extracted results (page_idx refers to pages list index)
     for page_idx in sorted(extracted.keys()):
         crops = extracted[page_idx]
@@ -582,6 +498,7 @@ async def compare_photos(
                             base64.b64encode(ref_jpeg_bytes).decode("ascii"),
                             photo_b64
                         )
+                        print("raw_result", raw_result)
                         output_tokens = count_tokens(raw_result)
                         total_model_cost += calculate_output_cost(output_tokens)
 
