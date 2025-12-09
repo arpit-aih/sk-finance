@@ -324,7 +324,7 @@ async def compare_signatures(
 
                 try:
                     similarity_score = await compare_signatures_gemini(crop_jpeg, ref_jpeg)
-                    total_gemini_cost += 1
+                    total_gemini_calls += 1
                     if similarity_score is not None:
                         confidence_status = signature_evaluate_confidence(similarity_score)
                 except Exception as e:
@@ -336,13 +336,29 @@ async def compare_signatures(
 
                 # Model report
                 try:
-                    model_result = await get_model_response(
+                    raw_result = await get_model_response(
                         signature_prompt,
                         base64.b64encode(ref_jpeg).decode("ascii"),
                         crop_b64,
                     )
-                    output_tokens = count_tokens(model_result)
+                    
+                    output_tokens = count_tokens(raw_result)
                     total_model_cost += calculate_output_cost(output_tokens)
+
+                    try:
+                        model_result = json.loads(raw_result)
+                    except Exception:
+                        try:
+                            cleaned = (
+                                raw_result.strip()
+                                .replace("```json", "")
+                                .replace("```", "")
+                                .strip()
+                            )
+                            model_result = json.loads(cleaned)
+                        except Exception as parse_err:
+                            logger.error(f"Failed to parse model JSON: {parse_err}")
+                            model_result = None
                 except Exception as e:
                     logger.error(f"Model error: {e}")
                     model_result = None
@@ -561,13 +577,28 @@ async def compare_photos(
                     total_model_cost += calculate_input_cost(input_tokens)
                     # Call external model (if present)
                     try:
-                        model_result = await get_model_response(
+                        raw_result = await get_model_response(
                             photo_prompt,
                             base64.b64encode(ref_jpeg_bytes).decode("ascii"),
                             photo_b64
                         )
-                        output_tokens = count_tokens(model_result)
+                        output_tokens = count_tokens(raw_result)
                         total_model_cost += calculate_output_cost(output_tokens)
+
+                        try:
+                            model_result = json.loads(raw_result)
+                        except Exception:
+                            try:
+                                cleaned = (
+                                    raw_result.strip()
+                                    .replace("```json", "")
+                                    .replace("```", "")
+                                    .strip()
+                                )
+                                model_result = json.loads(cleaned)
+                            except Exception as parse_err:
+                                logger.error(f"Failed to parse model JSON: {parse_err}")
+                                model_result = None
                     except Exception as e:
                         logger.exception(f"Model response error for crop (page {page_idx}, idx {crop_idx}): {e}")
                         model_result = None
