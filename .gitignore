@@ -6,3 +6,4 @@ uploads
 __pycache__
 confidence_score.py
 .env
+model
