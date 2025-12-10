@@ -39,6 +39,6 @@ def calculate_gemini_cost(num_calls: int):
     if num_calls < 0:
         raise ValueError("number of calls must be positive")
     
-    total_cost = num_calls * 0.058
+    total_cost = num_calls * 0.33
 
     return round(total_cost, 3)

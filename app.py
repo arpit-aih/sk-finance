@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import List, Tuple
 from logger_config import get_logger
 from fastapi.responses import JSONResponse
-from azure_openai import get_model_response, get_signature_model_response
 from photo_extractor import cv2_to_jpeg_bytes
 from prompt import signature_prompt, photo_prompt
 from azure_face import azure_detect_face, azure_verify
@@ -17,6 +16,10 @@ from signature_extractor import (
                   extract_signatures_photos_from_pages,
                   file_bytes_to_pil_pages
                   )
+from azure_openai import (
+                    get_model_response, 
+                    get_signature_model_response
+                    )
 from cost_analysis import (
                            calculate_faceapi_cost, 
                            calculate_input_cost,
@@ -47,50 +50,67 @@ client = genai.Client(
     api_key=os.getenv("GOOGLE_API_KEY"),
     http_options={'api_version': 'v1beta'}
 )
-
+    
 
 async def compare_signatures_gemini(sig1_bytes: bytes, sig2_bytes: bytes):
    
     try:
-        # Load images from bytes
         img1 = Image.open(io.BytesIO(sig1_bytes))
         img2 = Image.open(io.BytesIO(sig2_bytes))
     except Exception as e:
         logger.error(f"Failed to load images for Gemini: {e}")
         return None
     
-    # Define the prompt for structured output
     prompt = """
-    You are a forensic document analysis assistant. 
-    Analyze these two signature images. Compare their stroke flow, pen pressure indications, 
-    slant, spacing, and letter formation.
-    
-    Determine if they are likely from the same person.
-    
-    Return a JSON object with exactly these fields:
-    - "similarity_score": A float between 0 (completely different) and 100 (exact match).
-    """
-    
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[
-                prompt,
-                img1,
-                img2
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json", 
-                temperature=0.1 
-            )
-        )
+        You are a forensic document analysis assistant. 
+        Analyze these two signature images. Compare their stroke flow, pen pressure indications, 
+        slant, spacing, and letter formation.
         
-        # Parse the result
-        result_json = json.loads(response.text)
-        return result_json.get("similarity_score")
-    except Exception as e:
-        logger.error(f"Gemini API request failed: {e}")
-        return None
+        Determine if they are likely from the same person.
+        
+        Return a JSON object with exactly these fields:
+        - "similarity_score": A float between 0 (completely different) and 100 (exact match).
+        """
+    
+    models = ["gemini-3-pro-preview", "gemini-2.5-flash"]
+    
+    for model_name in models:
+        try:
+            logger.info(f"Attempting Gemini analysis with model: {model_name}")
+            
+            response = client.models.generate_content(
+                model=model_name, 
+                contents=[
+                    prompt,
+                    img1,
+                    img2
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json", 
+                    temperature=0.1 
+                )
+            )
+            
+            result_json = json.loads(response.text)
+            similarity_score = result_json.get("similarity_score")
+            
+            if similarity_score is not None:
+                logger.info(f"Successfully got result from {model_name}: {similarity_score}")
+                return similarity_score
+            else:
+                logger.warning(f"{model_name} returned JSON without similarity_score")
+                continue  # Try next model
+                
+        except Exception as e:
+            logger.error(f"Gemini API request failed with {model_name}: {e}")
+            if model_name == models[-1]:  # Last model in list
+                logger.error("All Gemini models failed")
+                return None
+            else:
+                logger.info(f"Falling back to next model...")
+                continue
+    
+    return None
 
 
 def signature_evaluate_confidence(confidence_score) -> str:
@@ -260,20 +280,6 @@ async def compare_signatures(
                     output_tokens = count_tokens(str(raw_result))
                     total_model_cost += calculate_output_cost(output_tokens)
 
-                    # try:
-                    #     model_result = json.loads(raw_result)
-                    # except Exception:
-                    #     try:
-                    #         cleaned = (
-                    #             raw_result.strip()
-                    #             .replace("```json", "")
-                    #             .replace("```", "")
-                    #             .strip()
-                    #         )
-                    #         model_result = json.loads(cleaned)
-                    #     except Exception as parse_err:
-                    #         logger.error(f"Failed to parse model JSON: {parse_err}")
-                    #         model_result = None
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -500,7 +506,7 @@ async def compare_photos(
                             base64.b64encode(ref_jpeg_bytes).decode("ascii"),
                             photo_b64
                         )
-                        print("raw_result", raw_result)
+
                         output_tokens = count_tokens(raw_result)
                         total_model_cost += calculate_output_cost(output_tokens)
 

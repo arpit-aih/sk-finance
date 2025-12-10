@@ -91,7 +91,6 @@ async def get_signature_model_response(prompt_text: str, reference_image: str, e
 
     fn_call = response.choices[0].message.function_call
 
-    # Parse guaranteed JSON
     data = json.loads(fn_call.arguments)
 
     return data
