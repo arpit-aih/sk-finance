@@ -32,17 +32,6 @@ signature_prompt = """
             reference_signature
             document_signature
             differences
-
-            Return output ONLY in the following JSON format:
-
-            {
-            "pixel_difference": [],
-            "stroke_points": {
-                "reference_signature": [],
-                "document_signature": [],
-                "differences": []
-            }
-            } 
             """
 
 photo_prompt = """You are a facial-feature comparison engine.

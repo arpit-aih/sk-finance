@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Tuple
 from logger_config import get_logger
 from fastapi.responses import JSONResponse
-from azure_openai import get_model_response
+from azure_openai import get_model_response, get_signature_model_response
 from photo_extractor import cv2_to_jpeg_bytes
 from prompt import signature_prompt, photo_prompt
 from azure_face import azure_detect_face, azure_verify
@@ -251,60 +251,32 @@ async def compare_signatures(
 
                 # Model report
                 try:
-                    raw_result = await get_model_response(
+                    raw_result = await get_signature_model_response(
                         signature_prompt,
                         base64.b64encode(ref_jpeg).decode("ascii"),
                         crop_b64,
                     )
                     
-                    output_tokens = count_tokens(raw_result)
+                    output_tokens = count_tokens(str(raw_result))
                     total_model_cost += calculate_output_cost(output_tokens)
 
-                    try:
-                       model_result = json.loads(raw_result)
-                    except json.JSONDecodeError as e:
-                        try:
-                            # Remove markdown code blocks
-                            cleaned = (
-                                raw_result.strip()
-                                .replace("```json", "")
-                                .replace("```", "")
-                                .strip()
-                            )
-                            model_result = json.loads(cleaned)
-                        except json.JSONDecodeError as parse_err:
-                            # Log the actual content to debug
-                            logger.error(f"Failed to parse model JSON: {parse_err}")
-                            logger.error(f"Raw result preview: {raw_result[:1000]}")  # First 1000 chars
-                            logger.error(f"Cleaned result preview: {cleaned[:1000] if 'cleaned' in locals() else 'N/A'}")
-                            
-                            # Try to extract JSON if embedded in text
-                            import re
-
-                            try:
-                                model_result = json.loads(raw_result)
-                            except json.JSONDecodeError:
-                                try:
-                                    # Remove markdown code blocks
-                                    cleaned = (
-                                        raw_result.strip()
-                                        .replace("```json", "")
-                                        .replace("```", "")
-                                        .strip()
-                                    )
-                                    
-                                    # Remove JSON comments (// style)
-                                    cleaned = re.sub(r'//.*?(?=\n|$)', '', cleaned)
-                                    
-                                    # Remove multi-line comments (/* */ style) if any
-                                    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
-                                    
-                                    model_result = json.loads(cleaned)
-                                except json.JSONDecodeError as parse_err:
-                                    logger.error(f"Failed to parse model JSON: {parse_err}")
-                                    logger.error(f"Raw result preview: {raw_result[:1000]}")
-                                    model_result = None
+                    # try:
+                    #     model_result = json.loads(raw_result)
+                    # except Exception:
+                    #     try:
+                    #         cleaned = (
+                    #             raw_result.strip()
+                    #             .replace("```json", "")
+                    #             .replace("```", "")
+                    #             .strip()
+                    #         )
+                    #         model_result = json.loads(cleaned)
+                    #     except Exception as parse_err:
+                    #         logger.error(f"Failed to parse model JSON: {parse_err}")
+                    #         model_result = None
                 except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     logger.error(f"Model error: {e}")
                     model_result = None
 
@@ -316,7 +288,7 @@ async def compare_signatures(
                 "signature_index": sig_idx,
                 "confidence_score": similarity_score,
                 "status": confidence_status,
-                "report": model_result,
+                "report": raw_result,
                 "image": crop_b64
             })
 
