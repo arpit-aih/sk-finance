@@ -261,9 +261,10 @@ async def compare_signatures(
                     total_model_cost += calculate_output_cost(output_tokens)
 
                     try:
-                        model_result = json.loads(raw_result)
-                    except Exception:
+                       model_result = json.loads(raw_result)
+                    except json.JSONDecodeError as e:
                         try:
+                            # Remove markdown code blocks
                             cleaned = (
                                 raw_result.strip()
                                 .replace("```json", "")
@@ -271,9 +272,38 @@ async def compare_signatures(
                                 .strip()
                             )
                             model_result = json.loads(cleaned)
-                        except Exception as parse_err:
+                        except json.JSONDecodeError as parse_err:
+                            # Log the actual content to debug
                             logger.error(f"Failed to parse model JSON: {parse_err}")
-                            model_result = None
+                            logger.error(f"Raw result preview: {raw_result[:1000]}")  # First 1000 chars
+                            logger.error(f"Cleaned result preview: {cleaned[:1000] if 'cleaned' in locals() else 'N/A'}")
+                            
+                            # Try to extract JSON if embedded in text
+                            import re
+
+                            try:
+                                model_result = json.loads(raw_result)
+                            except json.JSONDecodeError:
+                                try:
+                                    # Remove markdown code blocks
+                                    cleaned = (
+                                        raw_result.strip()
+                                        .replace("```json", "")
+                                        .replace("```", "")
+                                        .strip()
+                                    )
+                                    
+                                    # Remove JSON comments (// style)
+                                    cleaned = re.sub(r'//.*?(?=\n|$)', '', cleaned)
+                                    
+                                    # Remove multi-line comments (/* */ style) if any
+                                    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
+                                    
+                                    model_result = json.loads(cleaned)
+                                except json.JSONDecodeError as parse_err:
+                                    logger.error(f"Failed to parse model JSON: {parse_err}")
+                                    logger.error(f"Raw result preview: {raw_result[:1000]}")
+                                    model_result = None
                 except Exception as e:
                     logger.error(f"Model error: {e}")
                     model_result = None
