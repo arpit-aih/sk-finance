@@ -561,8 +561,8 @@ async def compare_photos(
                                         logger.exception(f"evaluate_confidence failed: {e}")
                                         confidence_status = None
 
-                    except Exception as e_azure:
-                        logger.exception(f"Azure verification error for crop (page {page_idx}, idx {crop_idx}): {e_azure}")
+                    except Exception as e:
+                        logger.exception(f"Azure verification error for crop (page {page_idx}, idx {crop_idx}): {e}")
                         confidence_score = None
                         confidence_status = None
 

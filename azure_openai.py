@@ -80,7 +80,6 @@ async def get_signature_model_response(prompt_text: str, reference_image: str, e
         }
     ]
 
-    # Force the model to return JSON that fits the schema
     response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
