@@ -69,10 +69,8 @@ def download_model() -> str:
             token=os.getenv("HF_TOKEN"),
         )
 
-        # Move to canonical MODEL_PATH if necessary
         if os.path.exists(model_path) and os.path.abspath(model_path) != os.path.abspath(MODEL_PATH):
             os.replace(model_path, MODEL_PATH)
-            # cleanup potential empty directories created by hub
             empty_dir = os.path.join(MODEL_DIR, "tune")
             if os.path.exists(empty_dir):
                 import shutil
@@ -91,18 +89,16 @@ class SignatureDetector:
         self.input_width = 640
         self.input_height = 640
 
-        # Simple in-memory metrics (no DB)
         self.total_inferences: int = 0
         self.last_inference_time_ms: float = 0.0
 
-        # Initialize ONNX Runtime session
         options = ort.SessionOptions()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
-        # Create session; if model_path doesn't exist, raise early
+
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"Model not found at {self.model_path}. Run download_model() first.")
         self.session = ort.InferenceSession(self.model_path, options)
-        # Attempt to set best provider; fallback to default providers if not available
+
         try:
             self.session.set_providers(["OpenVINOExecutionProvider"], [{"device_type": "CPU"}])
         except Exception:
@@ -116,7 +112,6 @@ class SignatureDetector:
     def get_metrics(self) -> dict:
         """Return simple in-memory metrics."""
         avg_time = self.last_inference_time_ms if self.total_inferences == 1 else None
-        # keep simple: return last and total; user can extend if needed
         return {
             "total_inferences": self.total_inferences,
             "last_inference_time_ms": self.last_inference_time_ms,
@@ -124,11 +119,9 @@ class SignatureDetector:
         }
 
     def preprocess(self, img: Image.Image) -> Tuple[np.ndarray, np.ndarray]:
-        # Convert PIL Image to cv2 BGR for drawing and keep original dims
         img_cv2 = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
         self.img_height, self.img_width = img_cv2.shape[:2]
 
-        # Convert to RGB for resize/prep
         img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
         img_resized = cv2.resize(img_rgb, (self.input_width, self.input_height))
         image_data = np.array(img_resized) / 255.0
@@ -170,11 +163,9 @@ class SignatureDetector:
                 scores.append(float(max_score))
                 class_ids.append(class_id)
 
-        # Apply NMS (OpenCV expects lists)
         detections: List[Dict[str, Any]] = []
         if boxes:
             indices = cv2.dnn.NMSBoxes(boxes, scores, conf_thres, iou_thres)
-            # Normalize indices to a flat list of ints
             if isinstance(indices, (list, tuple)):
                 idxs = [int(i[0]) if isinstance(i, (list, tuple, np.ndarray)) else int(i) for i in indices]
             else:
@@ -259,16 +250,12 @@ class SignatureDetector:
         return output_image
     
 
-# ---------- Utility: JPEG encode helper used in your original code ----------
-
 def cv2_to_jpeg_bytes(bgr: np.ndarray, quality: int = 90) -> bytes:
     success, buf = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
     if not success:
         raise RuntimeError("Failed to encode JPEG")
     return buf.tobytes()
 
-
-# ---------- Extraction function (uses SignatureDetector.predict_raw) ----------
 
 def extract_signatures_photos_from_pages(
     pages: List[Image.Image],
@@ -279,7 +266,6 @@ def extract_signatures_photos_from_pages(
 ) -> Dict[int, List[bytes]]:
     
     if detector is None:
-        # ensure model exists (download if necessary)
         if not os.path.exists(MODEL_PATH):
             download_model()
         detector = SignatureDetector(MODEL_PATH)
